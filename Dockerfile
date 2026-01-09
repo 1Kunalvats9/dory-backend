@@ -1,7 +1,7 @@
-# --- STEP 1: The Build Environment ---
-FROM golang:1.23-alpine AS builder
+# --- Build Stage ---
+FROM golang:1.25-alpine AS builder
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -20,6 +20,8 @@ WORKDIR /root/
 
 COPY --from=builder /app/dory-server .
 
-EXPOSE 3000
+# Render uses the PORT environment variable. 
+# Your Go app uses config.AppConfig.Port, make sure it defaults to the PORT env var.
+EXPOSE 8080
 
 CMD ["./dory-server"]
