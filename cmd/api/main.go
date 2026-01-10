@@ -26,12 +26,35 @@ func main() {
 		protected.POST("/chat", handlers.Chat)
 	}
 
+	// CORS preflight handlers for all routes
 	router.OPTIONS("/api/auth/google", func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		c.Status(204)
 	})
+
+	router.OPTIONS("/api/chat", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Status(204)
+	})
+
+	router.OPTIONS("/api/ingest/pdf", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Status(204)
+	})
+
+	router.OPTIONS("/api/ingest/text", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Status(204)
+	})
+
 	router.POST("/api/auth/google", handlers.GoogleLogin)
 
 	router.GET("/", func(c *gin.Context) {
