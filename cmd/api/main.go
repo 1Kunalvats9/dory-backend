@@ -18,6 +18,9 @@ func main() {
 	router := gin.Default()
 	router.MaxMultipartMemory = 10 << 20
 
+	// Apply CORS middleware to all routes
+	router.Use(middlewares.CORSMiddleware())
+
 	protected := router.Group("/api").Use(middlewares.AuthMiddleware())
 
 	{
@@ -25,35 +28,6 @@ func main() {
 		protected.POST("/ingest/text", handlers.IngestText)
 		protected.POST("/chat", handlers.Chat)
 	}
-
-	// CORS preflight handlers for all routes
-	router.OPTIONS("/api/auth/google", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Status(204)
-	})
-
-	router.OPTIONS("/api/chat", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Status(204)
-	})
-
-	router.OPTIONS("/api/ingest/pdf", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Status(204)
-	})
-
-	router.OPTIONS("/api/ingest/text", func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Status(204)
-	})
 
 	router.POST("/api/auth/google", handlers.GoogleLogin)
 

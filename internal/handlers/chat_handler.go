@@ -17,9 +17,20 @@ func Chat(c *gin.Context) {
 		utils.SendError(c, http.StatusBadRequest, "Message is required", err.Error())
 		return
 	}
-	userID, _ := c.Get("userID")
 
-	chunks, err := services.SearchSimilarChunks(userID.(string), input.Message)
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		utils.SendError(c, http.StatusUnauthorized, "Unauthorized", "User context missing")
+		return
+	}
+
+	userID, ok := userIDVal.(string)
+	if !ok || userID == "" {
+		utils.SendError(c, http.StatusUnauthorized, "Unauthorized", "Invalid user ID")
+		return
+	}
+
+	chunks, err := services.SearchSimilarChunks(userID, input.Message)
 	if err != nil {
 		utils.SendError(c, http.StatusInternalServerError, "Search failed", err.Error())
 		return
