@@ -16,7 +16,7 @@ func VerfiyGoogleToken(idTokenStr string) (*idtoken.Payload, error) {
 	ctx := context.Background()
 	payload, err := idtoken.Validate(context.Background(), idTokenStr, config.AppConfig.GoogleWebClientID)
 	if err == nil {
-		return nil, err
+		return payload, nil
 	}
 
 	payload, err = idtoken.Validate(ctx, idTokenStr, config.AppConfig.GoogleIOSClientID)

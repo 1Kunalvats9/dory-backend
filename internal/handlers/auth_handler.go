@@ -10,6 +10,10 @@ import (
 )
 
 func GoogleLogin(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
 	var input struct {
 		IDToken string `json:"idToken" binding:"required"`
 	}
@@ -20,20 +24,27 @@ func GoogleLogin(c *gin.Context) {
 	}
 
 	payload, err := services.VerfiyGoogleToken(input.IDToken)
-	if err != nil {
+	if err != nil || payload == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Google token"})
 		return
 	}
 
 	var user models.User
-	email := payload.Claims["email"].(string)
+	email, ok := payload.Claims["email"].(string)
+	if !ok || email == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: email not found"})
+		return
+	}
 
 	result := config.DB.Where("email = ?", email).First(&user)
 	if result.Error != nil {
+		name, _ := payload.Claims["name"].(string)
+		picture, _ := payload.Claims["picture"].(string)
+
 		user = models.User{
 			Email:        email,
-			Name:         payload.Claims["name"].(string),
-			ProfilePhoto: payload.Claims["picture"].(string),
+			Name:         name,
+			ProfilePhoto: picture,
 			GoogleID:     payload.Subject,
 		}
 		config.DB.Create(&user)

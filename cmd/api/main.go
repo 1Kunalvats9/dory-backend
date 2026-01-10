@@ -4,16 +4,17 @@ import (
 	"dory-backend/internal/config"
 	"dory-backend/internal/handlers"
 	"dory-backend/internal/middlewares"
-	"github.com/gin-gonic/gin"
 	"dory-backend/internal/services"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	config.LoadConfig()      //loading envs
 	config.ConnectDatabase() //connecting database
 	services.InitQdrant()
-	
+
 	router := gin.Default()
 	router.MaxMultipartMemory = 10 << 20
 
@@ -25,6 +26,12 @@ func main() {
 		protected.POST("/chat", handlers.Chat)
 	}
 
+	router.OPTIONS("/api/auth/google", func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Status(204)
+	})
 	router.POST("/api/auth/google", handlers.GoogleLogin)
 
 	router.GET("/", func(c *gin.Context) {

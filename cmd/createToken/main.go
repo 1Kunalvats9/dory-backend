@@ -7,8 +7,6 @@ import (
 	"log"
 )
 
-var token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3R1c2VyQGRvcnkuY29tIiwiZXhwIjoxNzY4NzI4OTQ4LCJ1c2VyX2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIn0.YjqKOaK2DnYBBknyyqshoje5K8WZMRSGW0TBCtOQ-VQ"
-
 func main() {
 	// 1. Load config to get your JWT_SECRET
 	config.LoadConfig()
