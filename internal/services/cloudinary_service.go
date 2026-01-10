@@ -15,8 +15,10 @@ func UploadToCloudinary(file multipart.File, filename string) (string, string, e
 	if err != nil {
 		return "", "", err
 	}
+	// Use "raw" resource type for PDFs to preserve the original file format
+	// Note: We now extract text before upload, so this is mainly for storage/backup
 	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
-		ResourceType: "auto",
+		ResourceType: "raw",
 		Folder:       "pdfs",
 	})
 	if err != nil {

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"dory-backend/internal/config"
 	"dory-backend/internal/models"
+	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -24,7 +26,10 @@ func ProcessPDF(docID uuid.UUID) {
 		text, err := extractTextFromURL(doc.FileURL)
 		if err != nil {
 			log.Printf("Extraction failed for %s: %v", doc.Filename, err)
+			// Update document status to failed with error details
 			config.DB.Model(&doc).Update("status", "failed")
+			// Optionally store error message in content field for debugging
+			config.DB.Model(&doc).Update("content", fmt.Sprintf("Error: %v", err))
 			return
 		}
 
@@ -58,6 +63,46 @@ func ProcessPDF(docID uuid.UUID) {
 		}
 	}()
 }
+
+// Extract text directly from a file stream
+func ExtractTextFromFile(file multipart.File) (string, error) {
+	// Read entire file into memory
+	bodyBytes, err := io.ReadAll(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %v", err)
+	}
+
+	// Validate PDF header
+	if len(bodyBytes) < 4 || string(bodyBytes[0:4]) != "%PDF" {
+		return "", fmt.Errorf("invalid PDF file: file does not start with PDF header")
+	}
+
+	bodyReader := bytes.NewReader(bodyBytes)
+	pdfReader, err := pdf.NewReader(bodyReader, int64(len(bodyBytes)))
+	if err != nil {
+		return "", fmt.Errorf("failed to create PDF reader: %v", err)
+	}
+
+	textReader, err := pdfReader.GetPlainText()
+	if err != nil {
+		return "", fmt.Errorf("failed to extract text from PDF: %v", err)
+	}
+
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(textReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read extracted text: %v", err)
+	}
+
+	text := buf.String()
+	if len(text) == 0 {
+		return "", fmt.Errorf("PDF appears to be empty or text extraction returned no content")
+	}
+
+	return text, nil
+}
+
+// Extract text from URL (fallback method)
 func extractTextFromURL(url string) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -65,27 +110,44 @@ func extractTextFromURL(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download PDF: HTTP %d", resp.StatusCode)
+	}
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read response body: %v", err)
 	}
+
+	// Validate PDF header
+	if len(bodyBytes) < 4 || string(bodyBytes[0:4]) != "%PDF" {
+		return "", fmt.Errorf("invalid PDF file: file does not start with PDF header")
+	}
+
 	bodyReader := bytes.NewReader(bodyBytes)
 	pdfReader, err := pdf.NewReader(bodyReader, int64(len(bodyBytes)))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create PDF reader: %v", err)
 	}
+
 	textReader, err := pdfReader.GetPlainText()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to extract text from PDF: %v", err)
 	}
 
 	var buf bytes.Buffer
 	_, err = buf.ReadFrom(textReader)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read extracted text: %v", err)
 	}
 
-	return buf.String(), nil
+	text := buf.String()
+	if len(text) == 0 {
+		return "", fmt.Errorf("PDF appears to be empty or text extraction returned no content")
+	}
+
+	return text, nil
 }
 
 func ChunkText(text string, chunkSize int) []string {

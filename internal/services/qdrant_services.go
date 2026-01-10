@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"dory-backend/internal/config"
 	"encoding/json"
 	"fmt"
@@ -91,20 +92,33 @@ func StoreChunksInQdrant(userID string, docID string, chunks []string) error {
 	for i, text := range chunks {
 		vector, err := EmbedText(text)
 		if err != nil {
-			log.Printf("Embedding failed for chunk %d: %v", i, err)
+			log.Printf("Embedding failed for chunk %d of doc %s: %v", i, docID, err)
 			continue
 		}
 
+		// Generate unique ID for each chunk using docID and chunk index
+		// This ensures no collisions across different documents
+		uniqueID := fmt.Sprintf("%s_%d", docID, i)
+		hash := md5.Sum([]byte(uniqueID))
+		// Use first 8 bytes of hash as uint64 ID
+		idNum := uint64(hash[0]) | uint64(hash[1])<<8 | uint64(hash[2])<<16 | uint64(hash[3])<<24 |
+			uint64(hash[4])<<32 | uint64(hash[5])<<40 | uint64(hash[6])<<48 | uint64(hash[7])<<56
+
 		point := &qdrant.PointStruct{
-			Id:      qdrant.NewIDNum(uint64(i + 1)),
+			Id:      qdrant.NewIDNum(idNum),
 			Vectors: qdrant.NewVectors(vector...),
 			Payload: qdrant.NewValueMap(map[string]any{
 				"user_id":     userID,
 				"document_id": docID,
+				"chunk_index": int64(i),
 				"content":     text,
 			}),
 		}
 		points = append(points, point)
+	}
+
+	if len(points) == 0 {
+		return fmt.Errorf("no chunks were successfully embedded for document %s", docID)
 	}
 
 	_, err := QClient.Upsert(context.Background(), &qdrant.UpsertPoints{
@@ -112,7 +126,13 @@ func StoreChunksInQdrant(userID string, docID string, chunks []string) error {
 		Points:         points,
 		Wait:           boolPtr(true),
 	})
-	return err
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert points to Qdrant for doc %s: %v", docID, err)
+	}
+
+	log.Printf("Successfully stored %d chunks in Qdrant for document %s", len(points), docID)
+	return nil
 }
 func boolPtr(b bool) *bool {
 	return &b

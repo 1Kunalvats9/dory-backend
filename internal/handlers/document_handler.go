@@ -6,7 +6,10 @@ import (
 	"dory-backend/internal/services"
 	"dory-backend/internal/utils"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,12 +42,39 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
+	// Validate file extension
+	filename := header.Filename
+	if !isPDFFile(filename) {
+		utils.SendError(c, http.StatusBadRequest, "Invalid file type", "Only PDF files are supported")
+		return
+	}
+
 	file, err := header.Open()
 	if err != nil {
 		utils.SendError(c, http.StatusInternalServerError, "Failed to open file", err.Error())
 		return
 	}
 	defer file.Close()
+
+	// Validate PDF file header before uploading
+	if !isValidPDF(file) {
+		utils.SendError(c, http.StatusBadRequest, "Invalid PDF file", "The file does not appear to be a valid PDF")
+		return
+	}
+
+	// Reset file pointer after validation
+	file.Seek(0, 0)
+
+	// Extract text from PDF before uploading to Cloudinary
+	// This avoids the need to download from Cloudinary later (which can have auth issues)
+	text, err := services.ExtractTextFromFile(file)
+	if err != nil {
+		utils.SendError(c, http.StatusBadRequest, "PDF extraction failed", err.Error())
+		return
+	}
+
+	// Reset file pointer again for Cloudinary upload
+	file.Seek(0, 0)
 
 	cloudURL, publicID, err := services.UploadToCloudinary(file, uuid.New().String())
 	if err != nil {
@@ -54,18 +84,63 @@ func UploadPDF(c *gin.Context) {
 
 	newDoc := models.Document{
 		UserID:   userID,
-		Filename: header.Filename,
+		Filename: filename,
 		FileURL:  cloudURL,
 		PublicID: publicID,
 		Status:   "processing",
+		Content:  text, // Store extracted text immediately
 	}
 
 	config.DB.Create(&newDoc)
 
-	// Start background processing
-	services.ProcessPDF(newDoc.ID)
+	// Process the extracted text asynchronously (chunking, embedding, event detection)
+	go func(docID uuid.UUID, uID uuid.UUID, extractedText string, cloudPublicID string) {
+		chunks := services.ChunkText(extractedText, 300)
+		err := services.StoreChunksInQdrant(uID.String(), docID.String(), chunks)
+		if err != nil {
+			log.Printf("Qdrant storage failed for doc %s: %v", docID, err)
+			config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("status", "failed")
+			return
+		}
+
+		events, err := services.DetectEvents(extractedText)
+		if err == nil {
+			for i := range events {
+				events[i].UserID = uID
+				events[i].DocumentID = docID
+				config.DB.Create(&events[i])
+			}
+		}
+
+		// Update status to ready
+		config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("status", "ready")
+		log.Printf("Document %s fully processed and embedded", docID)
+
+		// Delete from Cloudinary after processing (since we have the content stored)
+		if cloudPublicID != "" {
+			services.DeleteFromCloudinary(cloudPublicID)
+			config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("file_url", "")
+		}
+	}(newDoc.ID, userID, text, publicID)
 
 	utils.SendSuccess(c, http.StatusAccepted, "Upload successful, processing started", newDoc)
+}
+
+// Helper function to check if file has PDF extension
+func isPDFFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return ext == ".pdf"
+}
+
+// Helper function to validate PDF file header
+func isValidPDF(file multipart.File) bool {
+	header := make([]byte, 4)
+	_, err := file.Read(header)
+	if err != nil {
+		return false
+	}
+	// PDF files start with "%PDF"
+	return string(header) == "%PDF"
 }
 
 func IngestText(c *gin.Context) {
