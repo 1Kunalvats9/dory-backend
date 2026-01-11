@@ -196,3 +196,31 @@ func IngestText(c *gin.Context) {
 
 	utils.SendSuccess(c, http.StatusCreated, "Text ingested and embedding started", newDoc)
 }
+
+func GetDocument(c *gin.Context) {
+	userID, ok := getAuthUserID(c)
+	if !ok {
+		utils.SendError(c, http.StatusUnauthorized, "Unauthorized", "User context missing")
+		return
+	}
+
+	documentID := c.Param("id")
+	if documentID == "" {
+		utils.SendError(c, http.StatusBadRequest, "Document ID is required", "Missing document ID parameter")
+		return
+	}
+
+	docUUID, err := uuid.Parse(documentID)
+	if err != nil {
+		utils.SendError(c, http.StatusBadRequest, "Invalid document ID", err.Error())
+		return
+	}
+
+	var doc models.Document
+	if err := config.DB.Where("id = ? AND user_id = ?", docUUID, userID).First(&doc).Error; err != nil {
+		utils.SendError(c, http.StatusNotFound, "Document not found", "Document does not exist or you don't have access")
+		return
+	}
+
+	utils.SendSuccess(c, http.StatusOK, "Document retrieved successfully", doc)
+}

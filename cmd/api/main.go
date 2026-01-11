@@ -26,6 +26,7 @@ func main() {
 	{
 		protected.POST("/ingest/pdf", handlers.UploadPDF)
 		protected.POST("/ingest/text", handlers.IngestText)
+		protected.GET("/documents/:id", handlers.GetDocument)
 		protected.POST("/chat", handlers.Chat)
 	}
 
