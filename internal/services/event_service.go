@@ -69,7 +69,6 @@ func DetectEvents(text string) ([]models.DetectedEvent, error) {
 	return events, err
 }
 
-// Helper to remove AI markdown formatting
 func cleanAIJSON(input string) string {
 	input = strings.TrimSpace(input)
 	input = strings.TrimPrefix(input, "```json")

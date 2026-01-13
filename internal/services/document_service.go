@@ -88,6 +88,47 @@ func extractTextFromURL(url string) (string, error) {
 	return buf.String(), nil
 }
 
+func IngestManualText(uIDStr string, content string) error {
+	uID, err := uuid.Parse(uIDStr)
+	if err != nil {
+		return err
+	}
+
+	newDoc := models.Document{
+		UserID:   uID,
+		Filename: "Extracted Info " + uuid.New().String()[:8],
+		Content:  content,
+		FileType: "text",
+		Status:   "ready",
+	}
+
+	if err := config.DB.Create(&newDoc).Error; err != nil {
+		return err
+	}
+
+	// Process Qdrant and Event Detection
+	go func(userID uuid.UUID, docID uuid.UUID, text string) {
+		chunks := ChunkText(text, 300)
+		err := StoreChunksInQdrant(userID.String(), docID.String(), chunks)
+		if err != nil {
+			log.Printf("Text embedding failed for doc %s: %v", docID, err)
+			config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("status", "failed")
+			return
+		}
+
+		events, err := DetectEvents(text)
+		if err == nil {
+			for i := range events {
+				events[i].UserID = userID
+				events[i].DocumentID = docID
+				config.DB.Create(&events[i])
+			}
+		}
+	}(uID, newDoc.ID, content)
+
+	return nil
+}
+
 func ChunkText(text string, chunkSize int) []string {
 	words := strings.Fields(text)
 	if len(words) == 0 {

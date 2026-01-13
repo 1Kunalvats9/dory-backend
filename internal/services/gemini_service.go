@@ -69,3 +69,30 @@ func GenerateAIResponse(userQuery string, contextChunks []string) (string, error
 
 	return "I'm sorry, I couldn't generate a response.", nil
 }
+
+func RetrieveInfoAndSave(userQuery string) (string, error) {
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(config.AppConfig.GeminiKey))
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+	model := client.GenerativeModel("gemini-2.5-flash")
+
+	prompt := fmt.Sprintf(`You are a knowledgeable RAG (Retrieval-Augmented Generation) assistant. Your role is to answer user questions based on their personal documents and information they've shared with you.
+	You are provided by a user query and you have to check the sentiment of it, if it is kind of informative or something like user is telling you something,
+	so i want you to take that info and return the info in a plain text format , make sure to not include any other word or any supportive line, just send the response sent by user, return the information sent by user only nothing else extra
+	here is the user query: 
+	%s
+`, userQuery)
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", err
+	}
+
+	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+		return fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0]), nil
+	}
+
+	return "", fmt.Errorf("no response candidates found")
+}
