@@ -19,6 +19,9 @@ func ExtractUserInfo() gin.HandlerFunc {
 			return
 		}
 
+		// Save the message to context for the next handler to use
+		c.Set("userMessage", input.Message)
+
 		userIDVal, exists := c.Get("userID")
 		if !exists {
 			utils.SendError(c, http.StatusUnauthorized, "Unauthorized", "User context missing")

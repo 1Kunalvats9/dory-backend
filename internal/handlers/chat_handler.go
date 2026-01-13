@@ -13,9 +13,19 @@ func Chat(c *gin.Context) {
 		Message string `json:"message" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.SendError(c, http.StatusBadRequest, "Message is required", err.Error())
-		return
+	// Try to get the message from context first (populated by middleware)
+	if msg, exists := c.Get("userMessage"); exists {
+		if m, ok := msg.(string); ok {
+			input.Message = m
+		}
+	}
+
+	// If not in context, bind from JSON
+	if input.Message == "" {
+		if err := c.ShouldBindJSON(&input); err != nil {
+			utils.SendError(c, http.StatusBadRequest, "Message is required", err.Error())
+			return
+		}
 	}
 
 	userIDVal, exists := c.Get("userID")
