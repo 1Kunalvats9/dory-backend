@@ -95,9 +95,6 @@ func StoreChunksInQdrant(userID string, docID string, chunks []string) error {
 			log.Printf("Embedding failed for chunk %d of doc %s: %v", i, docID, err)
 			continue
 		}
-
-		// Generate unique ID for each chunk using docID and chunk index
-		// This ensures no collisions across different documents
 		uniqueID := fmt.Sprintf("%s_%d", docID, i)
 		hash := md5.Sum([]byte(uniqueID))
 		// Use first 8 bytes of hash as uint64 ID

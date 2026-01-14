@@ -27,6 +27,7 @@ func main() {
 		protected.POST("/ingest/pdf", handlers.UploadPDF)
 		protected.POST("/ingest/text", handlers.IngestText)
 		protected.POST("/chat", middlewares.ExtractUserInfo(), handlers.Chat)
+		protected.POST("/chat/stream", middlewares.ExtractUserInfo(), handlers.ChatStream)
 	}
 
 	router.POST("/api/auth/google", handlers.GoogleLogin)
