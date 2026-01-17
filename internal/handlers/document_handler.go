@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -93,7 +94,36 @@ func UploadPDF(c *gin.Context) {
 
 	config.DB.Create(&newDoc)
 
-	// Process the extracted text asynchronously (chunking, embedding, event detection)
+	// Synchronous Event Detection
+	var events []models.DetectedEvent
+	const minConfidence = 0.6
+	detectedEvents, err := services.DetectEvents(text)
+	if err != nil {
+		log.Printf("Event detection failed for doc %s: %v", newDoc.ID, err)
+	} else {
+		for _, evt := range detectedEvents {
+			if evt.Confidence < minConfidence {
+				continue
+			}
+
+			detected := models.DetectedEvent{
+				ID:         uuid.New(),
+				UserID:     userID,
+				DocumentID: newDoc.ID,
+				Title:      evt.Title,
+				StartTime:  evt.StartTime,
+				EndTime:    evt.EndTime,
+				Location:   evt.Location,
+				Confidence: evt.Confidence,
+				SourceText: evt.SourceText,
+				DetectedAt: time.Now(),
+			}
+			config.DB.Create(&detected)
+			events = append(events, detected)
+		}
+	}
+
+	// Process the extracted text asynchronously (chunking, embedding)
 	go func(docID uuid.UUID, uID uuid.UUID, extractedText string, cloudPublicID string) {
 		chunks := services.ChunkText(extractedText, 300)
 		err := services.StoreChunksInQdrant(uID.String(), docID.String(), chunks)
@@ -101,15 +131,6 @@ func UploadPDF(c *gin.Context) {
 			log.Printf("Qdrant storage failed for doc %s: %v", docID, err)
 			config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("status", "failed")
 			return
-		}
-
-		events, err := services.DetectEvents(extractedText)
-		if err == nil {
-			for i := range events {
-				events[i].UserID = uID
-				events[i].DocumentID = docID
-				config.DB.Create(&events[i])
-			}
 		}
 
 		// Update status to ready
@@ -123,7 +144,10 @@ func UploadPDF(c *gin.Context) {
 		}
 	}(newDoc.ID, userID, text, publicID)
 
-	utils.SendSuccess(c, http.StatusAccepted, "Upload successful, processing started", newDoc)
+	utils.SendSuccess(c, http.StatusAccepted, "Upload successful, processing started", gin.H{
+		"document":        newDoc,
+		"detected_events": events,
+	})
 }
 
 // Helper function to check if file has PDF extension
@@ -174,7 +198,36 @@ func IngestText(c *gin.Context) {
 
 	config.DB.Create(&newDoc)
 
-	// Async processing for Qdrant and Event Detection
+	// Synchronous Event Detection
+	var events []models.DetectedEvent
+	const minConfidence = 0.6
+	detectedEvents, err := services.DetectEvents(input.Content)
+	if err != nil {
+		log.Printf("Event detection failed for doc %s: %v", newDoc.ID, err)
+	} else {
+		for _, evt := range detectedEvents {
+			if evt.Confidence < minConfidence {
+				continue
+			}
+
+			detected := models.DetectedEvent{
+				ID:         uuid.New(),
+				UserID:     userID,
+				DocumentID: newDoc.ID,
+				Title:      evt.Title,
+				StartTime:  evt.StartTime,
+				EndTime:    evt.EndTime,
+				Location:   evt.Location,
+				Confidence: evt.Confidence,
+				SourceText: evt.SourceText,
+				DetectedAt: time.Now(),
+			}
+			config.DB.Create(&detected)
+			events = append(events, detected)
+		}
+	}
+
+	// Async processing for Qdrant
 	go func(uID uuid.UUID, docID uuid.UUID, content string) {
 		chunks := services.ChunkText(content, 300)
 		err := services.StoreChunksInQdrant(uID.String(), docID.String(), chunks)
@@ -183,18 +236,12 @@ func IngestText(c *gin.Context) {
 			config.DB.Model(&models.Document{}).Where("id = ?", docID).Update("status", "failed")
 			return
 		}
-
-		events, err := services.DetectEvents(content)
-		if err == nil {
-			for i := range events {
-				events[i].UserID = uID
-				events[i].DocumentID = docID
-				config.DB.Create(&events[i])
-			}
-		}
 	}(userID, newDoc.ID, input.Content) // Pass variables explicitly to the closure
 
-	utils.SendSuccess(c, http.StatusCreated, "Text ingested and embedding started", newDoc)
+	utils.SendSuccess(c, http.StatusCreated, "Text ingested and embedding started", gin.H{
+		"document":        newDoc,
+		"detected_events": events,
+	})
 }
 
 func GetDocument(c *gin.Context) {

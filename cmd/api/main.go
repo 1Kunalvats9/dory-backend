@@ -28,6 +28,8 @@ func main() {
 		protected.POST("/ingest/text", handlers.IngestText)
 		protected.POST("/chat", middlewares.ExtractUserInfo(), handlers.Chat)
 		protected.POST("/chat/stream", middlewares.ExtractUserInfo(), handlers.ChatStream)
+		protected.GET("/events/detected", handlers.GetDetectedEvents)
+		protected.GET("/events/upcoming", handlers.GetUpcomingEvents)
 	}
 
 	router.POST("/api/auth/google", handlers.GoogleLogin)

@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ledongthuc/pdf"
@@ -43,10 +44,20 @@ func ProcessPDF(docID uuid.UUID) {
 
 		events, err := DetectEvents(text)
 		if err == nil {
-			for i := range events {
-				events[i].UserID = doc.UserID
-				events[i].DocumentID = doc.ID
-				config.DB.Create(&events[i])
+			for _, e := range events {
+				detected := models.DetectedEvent{
+					ID:         uuid.New(),
+					UserID:     doc.UserID,
+					DocumentID: doc.ID,
+					Title:      e.Title,
+					StartTime:  e.StartTime,
+					EndTime:    e.EndTime,
+					Location:   e.Location,
+					Confidence: e.Confidence,
+					SourceText: e.SourceText,
+					DetectedAt: time.Now(),
+				}
+				config.DB.Create(&detected)
 			}
 		}
 
@@ -180,10 +191,20 @@ func IngestManualText(uIDStr string, content string) error {
 
 		events, err := DetectEvents(text)
 		if err == nil {
-			for i := range events {
-				events[i].UserID = userID
-				events[i].DocumentID = docID
-				config.DB.Create(&events[i])
+			for _, e := range events {
+				detected := models.DetectedEvent{
+					ID:         uuid.New(),
+					UserID:     userID,
+					DocumentID: docID,
+					Title:      e.Title,
+					StartTime:  e.StartTime,
+					EndTime:    e.EndTime,
+					Location:   e.Location,
+					Confidence: e.Confidence,
+					SourceText: e.SourceText,
+					DetectedAt: time.Now(),
+				}
+				config.DB.Create(&detected)
 			}
 		}
 	}(uID, newDoc.ID, content)

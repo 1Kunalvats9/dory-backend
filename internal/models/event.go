@@ -7,14 +7,24 @@ import (
 )
 
 type DetectedEvent struct {
-	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID     uuid.UUID  `gorm:"type:uuid;index"`
-	DocumentID uuid.UUID  `gorm:"type:uuid;index"`
-	Title      string     `gorm:"not null"`
-	StartTime  *time.Time `json:"start_time"`
-	EndTime    *time.Time `json:"end_time"`
-	Recurrence string     `json:"recurrence"`
-	Confidence float32    `json:"confidence"`
-	SourceText string     `gorm:"type:text" json:"source_text"`
-	CreatedAt  time.Time
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID     uuid.UUID `gorm:"type:uuid;index"`
+	DocumentID uuid.UUID `gorm:"type:uuid;index"`
+	Title      string
+	StartTime  *time.Time
+	EndTime    *time.Time
+	Location   *string
+	Confidence float64
+	SourceText string
+	DetectedAt time.Time
+}
+type Event struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid;index"`
+	Title     string
+	StartTime time.Time
+	EndTime   *time.Time
+	Location  *string
+	SourceID  uuid.UUID
+	CreatedAt time.Time
 }
